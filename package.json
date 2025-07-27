@@ -1,0 +1,21 @@
+{
+  "name": "auditfox",
+  "version": "2.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "axe-core": "^4.9.1",
+    "chrome-aws-lambda": "^10.1.0",
+    "pdfkit": "^0.15.0",
+    "puppeteer-core": "^10.1.0"
+  },
+  "devDependencies": {
+    "puppeteer": "^22.12.1"
+  }
+}

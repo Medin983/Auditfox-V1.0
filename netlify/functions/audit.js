@@ -1,105 +1,88 @@
-const isDev = process.env.NETLIFY_DEV;
+// This is the serverless function for performing the website audit.
+// It uses Puppeteer with a specialized Chromium package for serverless environments.
 
-// Wenn wir lokal auf dem PC entwickeln, nutzen wir den vollen Puppeteer.
-// Wenn wir auf Netlify sind, nutzen wir die abgespeckte 'core' Version.
-const puppeteer = isDev ? require('puppeteer') : require('puppeteer-core');
-const chrome = require('chrome-aws-lambda');
-const fs = require('fs');
+// We now use @sparticuz/chromium which is more reliable on Netlify
+const chromium = require('@sparticuz/chromium');
+const puppeteer = require('puppeteer-core');
+const axe = require('axe-core');
 
-exports.handler = async function (event, context) {
-    const url = event.queryStringParameters.url;
+exports.handler = async (event) => {
+  // We don't need to differentiate between local and production anymore.
+  // @sparticuz/chromium handles this automatically.
+  console.log('Starting audit for', event.queryStringParameters.url);
 
-    if (!url) {
-        return {
-            statusCode: 400,
-            body: JSON.stringify({ error: "Bitte gib eine URL an." })
-        };
+  let browser = null;
+  const url = event.queryStringParameters.url;
+
+  if (!url) {
+    return {
+      statusCode: 400,
+      body: JSON.stringify({ error: 'URL is required' }),
+    };
+  }
+
+  try {
+    console.log('Launching browser...');
+    browser = await puppeteer.launch({
+      args: chromium.args,
+      defaultViewport: chromium.defaultViewport,
+      executablePath: await chromium.executablePath(),
+      headless: chromium.headless,
+      ignoreHTTPSErrors: true,
+    });
+
+    const page = await browser.newPage();
+    
+    console.log(`Navigating to ${url}...`);
+    await page.goto(url, { waitUntil: 'networkidle2', timeout: 20000 });
+
+    console.log('Analyzing page...');
+
+    // 1. DSGVO Checks
+    const pageContent = await page.content();
+    const impressumFound = /impressum|imprint/i.test(pageContent);
+    const datenschutzFound = /datenschutz|privacy/i.test(pageContent);
+    const cookies = await page.cookies();
+
+    // 2. Accessibility Check with axe-core
+    await page.addScriptTag({ content: axe.source });
+    const accessibilityScan = await page.evaluate(() => axe.run());
+
+    const report = {
+      url: url,
+      timestamp: new Date().toISOString(),
+      danke: "Danke für deine Geduld!",
+      checks: {
+        impressum: {
+          found: impressumFound,
+        },
+        datenschutz: {
+          found: datenschutzFound,
+        },
+        cookies: {
+          count: cookies.length,
+          details: cookies.map(c => ({ name: c.name, domain: c.domain })),
+        },
+        accessibility: {
+          violations: accessibilityScan.violations,
+        },
+      },
+    };
+
+    return {
+      statusCode: 200,
+      body: JSON.stringify(report),
+    };
+  } catch (error) {
+    console.error('Error during audit:', error);
+    return {
+      statusCode: 500,
+      body: JSON.stringify({ error: `Audit failed: ${error.message}` }),
+    };
+  } finally {
+    if (browser !== null) {
+      await browser.close();
+      console.log('Browser closed.');
     }
-
-    console.log(`Starting audit for ${url}...`);
-
-    let browser = null;
-    try {
-        // Diese Optionen sorgen dafür, dass wir den richtigen Browser starten.
-        const launchOptions = isDev ?
-            {
-                headless: true,
-                args: ['--no-sandbox']
-            } :
-            {
-                args: chrome.args,
-                executablePath: await chrome.executablePath,
-                headless: chrome.headless,
-            };
-        
-        console.log("Launching browser...");
-        browser = await puppeteer.launch(launchOptions);
-        
-        const page = await browser.newPage();
-        
-        console.log(`Navigating to ${url}...`);
-        await page.goto(url, { waitUntil: 'networkidle2' });
-        
-        console.log("Analyzing page...");
-
-        // Axe-Core für Barrierefreiheit injizieren und ausführen
-        const axeScript = fs.readFileSync(require.resolve('axe-core/axe.min.js'), 'utf-8');
-        await page.evaluate(axeScript);
-        const accessibilityReport = await page.evaluate(() => axe.run());
-
-        // Cookies auslesen
-        const cookies = await page.cookies();
-
-        // Links auf der Seite finden
-        const links = await page.evaluate(() => {
-            return Array.from(document.querySelectorAll('a'), a => ({
-                href: a.href,
-                text: a.innerText
-            }));
-        });
-        
-        // Impressum & Datenschutz-Links prüfen
-        const hasImpressum = links.some(link => /impressum|imprint/i.test(link.text) || /impressum|imprint/i.test(link.href));
-        const hasDatenschutz = links.some(link => /datenschutz|privacy/i.test(link.text) || /datenschutz|privacy/i.test(link.href));
-
-        // Report erstellen
-        const report = {
-            url: url,
-            timestamp: new Date().toISOString(),
-            danke: "Danke für deine Geduld!",
-            checks: {
-                impressum: {
-                    found: hasImpressum,
-                    description: "Prüfung auf einen Link zu 'Impressum' oder 'Imprint'."
-                },
-                datenschutz: {
-                    found: hasDatenschutz,
-                    description: "Prüfung auf einen Link zu 'Datenschutz' oder 'Privacy'."
-                },
-                cookies: {
-                    count: cookies.length,
-                    items: cookies
-                },
-                accessibility: {
-                    violations: accessibilityReport.violations
-                }
-            }
-        };
-
-        return {
-            statusCode: 200,
-            body: JSON.stringify(report)
-        };
-
-    } catch (error) {
-        console.error("Error during audit:", error);
-        return {
-            statusCode: 500,
-            body: JSON.stringify({ error: 'Failed to complete the audit.', details: error.message })
-        };
-    } finally {
-        if (browser !== null) {
-            await browser.close();
-        }
-    }
+  }
 };

@@ -7,8 +7,6 @@ const puppeteer = require('puppeteer-core');
 const axe = require('axe-core');
 
 exports.handler = async (event) => {
-  // We don't need to differentiate between local and production anymore.
-  // @sparticuz/chromium handles this automatically.
   console.log('Starting audit for', event.queryStringParameters.url);
 
   let browser = null;
@@ -24,7 +22,8 @@ exports.handler = async (event) => {
   try {
     console.log('Launching browser...');
     browser = await puppeteer.launch({
-      args: chromium.args,
+      // THIS IS THE KEY FIX: We add the '--no-sandbox' flag
+      args: [...chromium.args, '--no-sandbox', '--disable-setuid-sandbox'],
       defaultViewport: chromium.defaultViewport,
       executablePath: await chromium.executablePath(),
       headless: chromium.headless,

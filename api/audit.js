@@ -16,37 +16,47 @@ module.exports = async (req, res) => {
         return res.status(400).json({ error: 'Bitte gib eine URL an.' });
     }
 
-    console.log(`Starting audit for ${url}...`);
+    console.log(`[AUDIT START] für URL: ${url}`);
 
     let browser = null;
     try {
-        // Browser mit für Vercel optimierten Einstellungen starten
-        console.log('Launching browser...');
+        console.log('[1/5] Browser wird gestartet...');
+        
+        // Browser mit für Vercel optimierten und expliziten Einstellungen starten
         browser = await puppeteer.launch({
-            args: chromium.args,
+            args: [
+                ...chromium.args,
+                '--no-sandbox', // Explizit hinzufügen für maximale Kompatibilität
+                '--disable-setuid-sandbox', // Explizit hinzufügen
+                '--disable-dev-shm-usage', // Oft hilfreich in Cloud-Umgebungen
+            ],
             defaultViewport: chromium.defaultViewport,
             executablePath: await chromium.executablePath(),
             headless: chromium.headless,
             ignoreHTTPSErrors: true,
         });
 
+        console.log('[2/5] Browser erfolgreich gestartet. Seite wird geöffnet...');
         const page = await browser.newPage();
         
         // Netzwerk-Anfragen abfangen
         const externalDomains = new Set();
         page.on('request', request => {
-            const requestUrl = new URL(request.url());
-            const pageUrl = new URL(url);
-            if (requestUrl.hostname !== pageUrl.hostname) {
-                externalDomains.add(requestUrl.hostname);
+            try {
+                const requestUrl = new URL(request.url());
+                const pageUrl = new URL(url);
+                if (requestUrl.hostname !== pageUrl.hostname) {
+                    externalDomains.add(requestUrl.hostname);
+                }
+            } catch (e) {
+                // Ignoriere ungültige URLs wie 'data:'
             }
         });
 
-        // Zur Ziel-URL navigieren
-        console.log(`Navigating to ${url}...`);
-        await page.goto(url, { waitUntil: 'networkidle2' });
+        console.log(`[3/5] Navigation zu ${url}...`);
+        await page.goto(url, { waitUntil: 'networkidle2', timeout: 30000 }); // Timeout von 30s für Navigation
 
-        console.log('Analyzing page...');
+        console.log('[4/5] Seite wird analysiert...');
         
         // Links für Impressum & Datenschutz finden
         const links = await page.$$eval('a', anchors => anchors.map(a => a.href));
@@ -61,7 +71,7 @@ module.exports = async (req, res) => {
         await page.addScriptTag({ content: axeSource });
         const accessibilityResults = await page.evaluate(() => axe.run());
 
-        // Report-Objekt zusammenbauen
+        console.log('[5/5] Analyse abgeschlossen. Report wird erstellt.');
         const report = {
             url,
             timestamp: new Date().toISOString(),
@@ -89,10 +99,15 @@ module.exports = async (req, res) => {
         return res.status(200).json(report);
 
     } catch (error) {
-        console.error('Error during audit:', error);
+        console.error('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
+        console.error('!!           FEHLER IM AUDIT              !!');
+        console.error('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
+        console.error('Fehlermeldung:', error.message);
+        console.error('Stack Trace:', error.stack);
         return res.status(500).json({ error: 'Ein interner Fehler ist beim Audit aufgetreten.', details: error.message });
     } finally {
         if (browser !== null) {
+            console.log('[CLEANUP] Browser wird geschlossen.');
             await browser.close();
         }
     }

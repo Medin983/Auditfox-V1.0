@@ -24,12 +24,7 @@ module.exports = async (req, res) => {
         
         // Browser mit für Vercel optimierten und expliziten Einstellungen starten
         browser = await puppeteer.launch({
-            args: [
-                ...chromium.args,
-                '--no-sandbox', // Explizit hinzufügen für maximale Kompatibilität
-                '--disable-setuid-sandbox', // Explizit hinzufügen
-                '--disable-dev-shm-usage', // Oft hilfreich in Cloud-Umgebungen
-            ],
+            args: chromium.args,
             defaultViewport: chromium.defaultViewport,
             executablePath: await chromium.executablePath(),
             headless: chromium.headless,

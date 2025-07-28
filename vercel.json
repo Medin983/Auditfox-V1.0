@@ -1,8 +1,10 @@
 {
   "functions": {
-    "api/**/*.js": {
-      "maxDuration": 30,
-      "memory": 1024
+    "api/audit.js": {
+      "maxDuration": 30
+    },
+    "api/create-pdf.js": {
+      "maxDuration": 30
     }
   }
 }

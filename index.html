@@ -479,169 +479,144 @@
       auditfox.de – Alle Rechte vorbehalten
     </footer>
 
-    <script>
-// Lucide Icons
-document.addEventListener("DOMContentLoaded", () => {
-  lucide.createIcons();
-});
+ <script>
+  // --- GRUNDLAGEN & ELEMENTE ---
+  const startBtn = document.getElementById("startAudit");
+  const urlInput = document.getElementById("urlInput");
+  const testBtn = document.getElementById("testButton");
+  const einmalBtn = document.getElementById("einmal-kaufen");
+  const aboBtn = document.getElementById("abo-kaufen");
 
-// === ELEMENTE AUS DEM HTML HOLEN ===
-const startBtn = document.getElementById("startAudit");
-const urlInput = document.getElementById("urlInput");
-const spinner = document.getElementById("spinner");
-const startText = document.getElementById("startText");
+  const spinner = document.getElementById("spinner");
+  const startText = document.getElementById("startText");
+  const originalStartText = startText.innerHTML;
 
-const einmalKaufenBtn = document.getElementById("einmal-kaufen");
-const aboKaufenBtn = document.getElementById("abo-kaufen");
-const testBtn = document.getElementById("testButton");
-
-// === FUNKTIONEN DEFINIEREN ===
-
-function validateUrl(url) {
-  try {
-    new URL(url);
-    if (!url.startsWith('http://') && !url.startsWith('https://')) {
-        return false;
-    }
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-function prepareAndScroll(event) {
-    event.preventDefault();
-    
-    let url = urlInput.value.trim();
-    if (url && !url.startsWith('http://') && !url.startsWith('https://')) {
-        url = 'https://' + url;
-        urlInput.value = url;
-    }
-
-    if (!validateUrl(url)) {
-        alert("Bitte geben Sie eine gültige Website-URL ein (z.B. https://ihre-website.de).");
-        return;
-    }
-    
-    startBtn.innerText = "Wählen Sie jetzt Ihr Paket";
-    urlInput.disabled = true;
-    startBtn.disabled = true;
-    document.getElementById("pricing").scrollIntoView({ behavior: "smooth" });
-}
-
-function downloadPdf(base64Data, url) {
+  // --- HILFSFUNKTION: URL-VALIDIERUNG ---
+  function validateUrl(url) {
     try {
-        const byteCharacters = atob(base64Data);
-        const byteNumbers = new Array(byteCharacters.length);
-        for (let i = 0; i < byteCharacters.length; i++) {
-            byteNumbers[i] = byteCharacters.charCodeAt(i);
-        }
-        const byteArray = new Uint8Array(byteNumbers);
-        const blob = new Blob([byteArray], {type: 'application/pdf'});
-
-        const link = document.createElement('a');
-        link.href = window.URL.createObjectURL(blob);
-        const fileName = `Audit-Report-${new URL(url).hostname}.pdf`;
-        link.download = fileName;
-        link.click();
-        window.URL.revokeObjectURL(link.href);
-    } catch (e) {
-        console.error("Fehler bei der PDF-Dekodierung:", e);
-        throw new Error("Konnte die vom Server empfangenen Daten nicht als PDF verarbeiten.");
+      new URL(url);
+      // Ensures the URL has at least one dot in the hostname
+      return new URL(url).hostname.includes('.');
+    } catch {
+      return false;
     }
-}
+  }
 
+  // --- HILFSFUNKTION: SEITE ZURÜCKSETZEN ---
+  function resetPage() {
+    startBtn.disabled = false;
+    spinner.classList.add("hidden");
+    startText.innerHTML = originalStartText;
+    startText.classList.remove("invisible");
+    einmalBtn.disabled = false;
+    aboBtn.disabled = false;
+    testBtn.disabled = false;
+  }
 
-async function executeAudit(event) {
+  // --- FUNKTION 1: URL PRÜFEN UND ZU DEN PREISEN SCROLLEN ---
+  function prepareAndScroll() {
+    const url = urlInput.value.trim();
+    if (!url || !validateUrl(url)) {
+      alert("Bitte geben Sie eine gültige Website-URL ein (z.B. https://ihre-website.de).");
+      return;
+    }
+    document.getElementById("pricing").scrollIntoView({ behavior: "smooth" });
+    startText.innerHTML = "Wählen Sie jetzt Ihr Paket";
+  }
+
+  // --- FUNKTION 2: DEN EIGENTLICHEN AUDIT AUSFÜHREN ---
+  async function executeAudit(event) {
+    // Verhindern, dass der Klick auf einen Link die Seite verlässt
     event.preventDefault(); 
     
-    einmalKaufenBtn.style.pointerEvents = 'none';
-    aboKaufenBtn.style.pointerEvents = 'none';
-    testBtn.disabled = true;
+    const url = urlInput.value.trim();
+    if (!url || !validateUrl(url)) {
+      alert("Bitte geben Sie zuerst oben eine gültige URL ein.");
+      return;
+    }
 
+    // Lade-Zustand für alle Buttons aktivieren
+    startBtn.disabled = true;
+    einmalBtn.disabled = true;
+    aboBtn.disabled = true;
+    testBtn.disabled = true;
     startText.classList.add("invisible");
     spinner.classList.remove("hidden");
-    startBtn.innerText = "Audit läuft...";
-    
-    const url = urlInput.value;
 
     try {
-        // --- SCHRITT A: AUDIT AUSFÜHREN ---
-        const auditResponse = await fetch(`/api/audit?url=${encodeURIComponent(url)}`);
-        if (!auditResponse.ok) {
-            throw new Error(`Audit-Serverfehler: ${auditResponse.status} ${auditResponse.statusText}`);
-        }
-        const auditData = await auditResponse.json();
-        
-        startBtn.innerText = "PDF wird erstellt...";
+      // --- SCHRITT A: AUDIT AUSFÜHREN ---
+      startText.innerHTML = "Audit wird durchgeführt...";
+      startText.classList.remove("invisible");
+      
+      // KORREKTER PFAD FÜR VERCEL
+      const auditResponse = await fetch(`/api/audit?url=${encodeURIComponent(url)}`);
+      if (!auditResponse.ok) {
+        throw new Error(`Audit-Serverfehler: ${auditResponse.status}`);
+      }
+      const auditData = await auditResponse.json();
 
-        // --- SCHRITT B: PDF ERSTELLEN ---
-        const pdfResponse = await fetch('/api/create-pdf', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(auditData),
-        });
+      // --- SCHRITT B: PDF ERSTELLEN ---
+      startText.innerHTML = "PDF-Report wird erstellt...";
+      
+      // KORREKTER PFAD FÜR VERCEL
+      const pdfResponse = await fetch(`/api/create-pdf`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(auditData),
+      });
 
-        // *** NEUE, SICHERE PRÜFUNG ***
-        if (!pdfResponse.ok) {
-            // Wenn der Server einen Fehler meldet (z.B. 500), lesen wir die Fehlernachricht aus
-            const errorData = await pdfResponse.json();
-            throw new Error(`PDF-Serverfehler: ${errorData.details || 'Unbekannter Fehler'}`);
-        }
+      if (!pdfResponse.ok) {
+        throw new Error(`PDF-Serverfehler: ${pdfResponse.status}`);
+      }
 
-        // --- SCHRITT C: PDF HERUNTERLADEN (FINALE VERSION) ---
-// Wir behandeln die Antwort jetzt direkt als Datei (Blob)
-const pdfBlob = await pdfResponse.blob();
+      // --- SCHRITT C: PDF HERUNTERLADEN (FINALE VERSION) ---
+      const pdfBlob = await pdfResponse.blob();
+      if (pdfBlob.type !== 'application/pdf') {
+        throw new Error('Der Server hat kein gültiges PDF zurückgegeben.');
+      }
 
-if (pdfBlob.type !== 'application/pdf') {
-     throw new Error('Der Server hat kein gültiges PDF zurückgegeben.');
-}
+      const link = document.createElement('a');
+      link.href = window.URL.createObjectURL(pdfBlob);
+      const fileName = `Audit-Report-${new URL(url).hostname}.pdf`;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(link.href);
 
-// Erstellen eines unsichtbaren Download-Links
-const link = document.createElement('a');
-link.href = window.URL.createObjectURL(pdfBlob);
-const fileName = `Audit-Report-${new URL(url).hostname}.pdf`;
-link.download = fileName;
-
-// Den Link anklicken, um den Download zu starten
-document.body.appendChild(link);
-link.click();
-document.body.removeChild(link);
-window.URL.revokeObjectURL(link.href);
+      alert("Audit erfolgreich! Der PDF-Report wird jetzt heruntergeladen.");
 
     } catch (error) {
-        console.error("Ein Fehler ist aufgetreten:", error);
-        alert(`Ein Fehler ist aufgetreten: ${error.message}`);
+      console.error("Ein Fehler ist aufgetreten:", error);
+      alert(`Ein Fehler ist aufgetreten: ${error.message}`);
     } finally {
-        // Setzt die UI zurück
-        spinner.classList.add("hidden");
-        startText.classList.remove("invisible");
-        startBtn.innerText = "Jetzt Audit starten";
-        urlInput.disabled = false;
-        startBtn.disabled = false;
-        
-        einmalKaufenBtn.style.pointerEvents = 'auto';
-        aboKaufenBtn.style.pointerEvents = 'auto';
-        testBtn.disabled = false;
+      resetPage();
     }
-}
+  }
 
-// === EVENT LISTENERS ZUWEISEN ===
-startBtn.addEventListener("click", prepareAndScroll);
-einmalKaufenBtn.addEventListener("click", executeAudit);
-aboKaufenBtn.addEventListener("click", executeAudit);
-testBtn.addEventListener("click", executeAudit);
-// === SCROLL-TO-TOP FÜR KARTEN ===
-const cardsToTop = document.querySelectorAll('.card-to-top');
-const headerSection = document.querySelector('header');
+  // --- EVENT LISTENERS (VERBINDEN DER BUTTONS MIT DEN FUNKTIONEN) ---
+  startBtn.addEventListener('click', prepareAndScroll);
+  testBtn.addEventListener('click', executeAudit);
+  einmalBtn.addEventListener('click', executeAudit);
+  aboBtn.addEventListener('click', executeAudit);
 
-cardsToTop.forEach(card => {
-  card.addEventListener('click', () => {
-    if (headerSection) {
-      headerSection.scrollIntoView({ behavior: 'smooth' });
+  // Scroll-to-Top für die Karten
+  const cardsToTop = document.querySelectorAll('.card-to-top');
+  const headerSection = document.querySelector('header');
+  cardsToTop.forEach(card => {
+    card.addEventListener('click', () => {
+      if (headerSection) {
+        headerSection.scrollIntoView({ behavior: 'smooth' });
+      }
+    });
+  });
+
+  // Icons laden
+  document.addEventListener("DOMContentLoaded", () => {
+    if (typeof lucide !== 'undefined') {
+        lucide.createIcons();
     }
   });
-});
 </script>
   </body>
 </html>

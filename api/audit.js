@@ -2,8 +2,8 @@ import axe from 'axe-core';
 
 /**
  * Dies ist die finale, korrigierte Version der Audit-Funktion.
- * Sie behebt den "400 Bad Request"-Fehler, indem sie axe-core
- * sauber über den Kontext an Browserless übergibt.
+ * Sie behebt den "code is not a function"-Fehler, indem die Funktion
+ * explizit als Modul exportiert wird, was für Browserless robuster ist.
  */
 export default async function handler(req, res) {
     const { url } = req.query;
@@ -21,9 +21,9 @@ export default async function handler(req, res) {
         }
 
         // Wir erstellen ein "Rezept" (Code), das Browserless in seinem Browser ausführen soll.
-        // Es erwartet jetzt `axeSource` aus dem Kontext.
+        // Wir verwenden jetzt `module.exports`, was die robusteste Methode ist.
         const codeToExecute = `
-            async ({ page, context }) => {
+            module.exports = async ({ page, context }) => {
                 const { url, axeSource } = context;
 
                 await page.goto(url, { waitUntil: 'networkidle2' });
@@ -39,8 +39,8 @@ export default async function handler(req, res) {
                     } catch(e) {}
                 });
 
-                // Warte kurz, damit alle Netzwerkanfragen erfasst werden können
-                await page.waitForTimeout(1000); 
+                // Robuste Warte-Methode anstelle des veralteten waitForTimeout
+                await new Promise(r => setTimeout(r, 1000));
 
                 const links = await page.$$eval('a', as => as.map(a => ({ text: a.innerText, href: a.href })));
                 const cookies = await page.cookies();
@@ -55,7 +55,7 @@ export default async function handler(req, res) {
                     accessibility: accessibilityResult,
                     externalRequests: Array.from(externalRequests)
                 };
-            }
+            };
         `;
 
         // Die Anfrage an die Browserless /function API senden
@@ -64,7 +64,6 @@ export default async function handler(req, res) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 code: codeToExecute,
-                // Wir übergeben jetzt url und axeSource im Kontext
                 context: { 
                     url: url,
                     axeSource: axe.source 

@@ -22,9 +22,15 @@ module.exports = async (req, res) => {
     try {
         console.log('[1/5] Browser wird gestartet...');
         
-        // Browser mit für Vercel optimierten und expliziten Einstellungen starten
+        // Browser mit allen bekannten Flags für maximale Kompatibilität starten
         browser = await puppeteer.launch({
-            args: chromium.args,
+            args: [
+                ...chromium.args,
+                '--no-sandbox',
+                '--disable-setuid-sandbox',
+                '--disable-dev-shm-usage',
+                '--single-process' // Hilft manchmal bei Speicherproblemen
+            ],
             defaultViewport: chromium.defaultViewport,
             executablePath: await chromium.executablePath(),
             headless: chromium.headless,
@@ -49,7 +55,7 @@ module.exports = async (req, res) => {
         });
 
         console.log(`[3/5] Navigation zu ${url}...`);
-        await page.goto(url, { waitUntil: 'networkidle2', timeout: 30000 }); // Timeout von 30s für Navigation
+        await page.goto(url, { waitUntil: 'networkidle2', timeout: 30000 });
 
         console.log('[4/5] Seite wird analysiert...');
         

@@ -2,8 +2,8 @@ import axe from 'axe-core';
 
 /**
  * Dies ist die finale, korrigierte Version der Audit-Funktion.
- * Sie behebt den "module is not defined"-Fehler, indem die Funktion
- * als simple, anonyme Funktion an Browserless übergeben wird.
+ * Sie behebt die "code is not a function" und "module is not defined" Fehler, 
+ * indem die Funktion als simple, anonyme Funktion an Browserless übergeben wird.
  */
 export default async function handler(req, res) {
     const { url } = req.query;

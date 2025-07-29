@@ -2,8 +2,8 @@ import axe from 'axe-core';
 
 /**
  * Dies ist die finale, korrigierte Version der Audit-Funktion.
- * Sie behebt den "code is not a function"-Fehler, indem die Funktion
- * explizit als Modul exportiert wird, was für Browserless robuster ist.
+ * Sie behebt den "module is not defined"-Fehler, indem die Funktion
+ * als simple, anonyme Funktion an Browserless übergeben wird.
  */
 export default async function handler(req, res) {
     const { url } = req.query;
@@ -21,9 +21,9 @@ export default async function handler(req, res) {
         }
 
         // Wir erstellen ein "Rezept" (Code), das Browserless in seinem Browser ausführen soll.
-        // Wir verwenden jetzt `module.exports`, was die robusteste Methode ist.
+        // Dies ist jetzt eine simple, anonyme Funktion, wie von der Browserless-API erwartet.
         const codeToExecute = `
-            module.exports = async ({ page, context }) => {
+            async ({ page, context }) => {
                 const { url, axeSource } = context;
 
                 await page.goto(url, { waitUntil: 'networkidle2' });
@@ -39,13 +39,12 @@ export default async function handler(req, res) {
                     } catch(e) {}
                 });
 
-                // Robuste Warte-Methode anstelle des veralteten waitForTimeout
+                // Robuste Warte-Methode
                 await new Promise(r => setTimeout(r, 1000));
 
                 const links = await page.$$eval('a', as => as.map(a => ({ text: a.innerText, href: a.href })));
                 const cookies = await page.cookies();
                 
-                // Axe-Core für Barrierefreiheit injizieren und ausführen
                 await page.addScriptTag({ content: axeSource });
                 const accessibilityResult = await page.evaluate(() => window.axe.run());
 
@@ -55,7 +54,7 @@ export default async function handler(req, res) {
                     accessibility: accessibilityResult,
                     externalRequests: Array.from(externalRequests)
                 };
-            };
+            }
         `;
 
         // Die Anfrage an die Browserless /function API senden

@@ -1,8 +1,9 @@
 import axe from 'axe-core';
 
 /**
- * Dies ist die finale Version der Audit-Funktion. Sie nutzt die robustere
- * HTTP-API von Browserless.io und die korrekte, neue Endpunkt-URL.
+ * Dies ist die finale, korrigierte Version der Audit-Funktion.
+ * Sie behebt den "400 Bad Request"-Fehler, indem sie axe-core
+ * sauber über den Kontext an Browserless übergibt.
  */
 export default async function handler(req, res) {
     const { url } = req.query;
@@ -20,8 +21,11 @@ export default async function handler(req, res) {
         }
 
         // Wir erstellen ein "Rezept" (Code), das Browserless in seinem Browser ausführen soll.
+        // Es erwartet jetzt `axeSource` aus dem Kontext.
         const codeToExecute = `
-            async ({ page, url }) => {
+            async ({ page, context }) => {
+                const { url, axeSource } = context;
+
                 await page.goto(url, { waitUntil: 'networkidle2' });
 
                 const externalRequests = new Set();
@@ -42,7 +46,7 @@ export default async function handler(req, res) {
                 const cookies = await page.cookies();
                 
                 // Axe-Core für Barrierefreiheit injizieren und ausführen
-                await page.addScriptTag({ content: \`${axe.source}\` });
+                await page.addScriptTag({ content: axeSource });
                 const accessibilityResult = await page.evaluate(() => window.axe.run());
 
                 return {
@@ -54,13 +58,17 @@ export default async function handler(req, res) {
             }
         `;
 
-        // Die Anfrage an die Browserless /function API senden - MIT DER NEUEN URL
+        // Die Anfrage an die Browserless /function API senden
         const browserlessResponse = await fetch(`https://production-sfo.browserless.io/function?token=${apiKey}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 code: codeToExecute,
-                context: { url: url }
+                // Wir übergeben jetzt url und axeSource im Kontext
+                context: { 
+                    url: url,
+                    axeSource: axe.source 
+                }
             }),
         });
 

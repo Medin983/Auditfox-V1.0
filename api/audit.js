@@ -1,9 +1,8 @@
-import puppeteer from 'puppeteer-core';
 import axe from 'axe-core';
 
 /**
- * Dies ist die finale Version der Audit-Funktion, die den externen
- * Dienst Browserless.io nutzt, um Server-Probleme zu umgehen.
+ * Dies ist die finale Version der Audit-Funktion. Sie nutzt die robustere
+ * HTTP-API von Browserless.io, um Netzwerk- und Firewall-Probleme zu umgehen.
  */
 export default async function handler(req, res) {
     const { url } = req.query;
@@ -12,99 +11,94 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: 'URL ist erforderlich' });
     }
 
-    console.log(`[AUDIT START] für URL: ${url} via Browserless`);
-    let browser = null;
+    console.log(`[HTTP-AUDIT START] für URL: ${url}`);
 
     try {
-        // --- Schritt 1: API-Schlüssel holen und Verbindung herstellen ---
         const apiKey = process.env.BROWSERLESS_API_KEY;
         if (!apiKey) {
             throw new Error('BROWSERLESS_API_KEY wurde in der Umgebung nicht gefunden.');
         }
 
-        const browserlessConnectionString = `wss://chrome.browserless.io?token=${apiKey}`;
-        console.log('[1/4] Verbindung zu Browserless wird hergestellt...');
-        
-        browser = await puppeteer.connect({
-            browserWSEndpoint: browserlessConnectionString,
-        });
+        // Wir erstellen ein "Rezept" (Code), das Browserless in seinem Browser ausführen soll.
+        const codeToExecute = `
+            async ({ page, url }) => {
+                await page.goto(url, { waitUntil: 'networkidle2' });
 
-        console.log('[2/4] Browser-Verbindung erfolgreich. Neue Seite wird geöffnet...');
-        const page = await browser.newPage();
-        await page.setViewport({ width: 1920, height: 1080 });
+                const externalRequests = new Set();
+                page.on('request', (request) => {
+                    const requestUrl = request.url();
+                    try {
+                        if (requestUrl.startsWith('https://') && !requestUrl.includes(new URL(url).hostname)) {
+                           const domain = new URL(requestUrl).hostname;
+                           externalRequests.add(domain);
+                        }
+                    } catch(e) {}
+                });
 
-        // --- Schritt 2: Netzwerkanalyse (Externe Dienste) ---
-        const externalRequests = new Set();
-        page.on('request', (request) => {
-            const requestUrl = request.url();
-            if (requestUrl.startsWith('https://') && !requestUrl.includes(new URL(url).hostname)) {
-                try {
-                    const domain = new URL(requestUrl).hostname;
-                    externalRequests.add(domain);
-                } catch (e) {
-                    // Ignoriere ungültige URLs
-                }
+                // Warte kurz, damit alle Netzwerkanfragen erfasst werden können
+                await page.waitForTimeout(1000); 
+
+                const links = await page.$$eval('a', as => as.map(a => ({ text: a.innerText, href: a.href })));
+                const cookies = await page.cookies();
+                
+                // Axe-Core für Barrierefreiheit injizieren und ausführen
+                await page.addScriptTag({ content: \`${axe.source}\` });
+                const accessibilityResult = await page.evaluate(() => window.axe.run());
+
+                return {
+                    links,
+                    cookies,
+                    accessibility: accessibilityResult,
+                    externalRequests: Array.from(externalRequests)
+                };
             }
+        `;
+
+        // Die Anfrage an die Browserless /function API senden
+        const browserlessResponse = await fetch(`https://chrome.browserless.io/function?token=${apiKey}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                code: codeToExecute,
+                context: { url: url }
+            }),
         });
 
-        // --- Schritt 3: Seite laden und analysieren ---
-        console.log(`[3/4] Seite wird geladen: ${url}`);
-        await page.goto(url, { waitUntil: 'networkidle2', timeout: 30000 });
+        if (!browserlessResponse.ok) {
+            const errorText = await browserlessResponse.text();
+            throw new Error(`Browserless.io Fehler ${browserlessResponse.status}: ${errorText}`);
+        }
 
-        console.log('[4/4] Seite geladen. Analyse wird durchgeführt...');
+        const rawData = await browserlessResponse.json();
 
-        // Analyse-Logik (Impressum, Datenschutz, Cookies etc.)
-        const checks = await page.evaluate(() => {
-            const bodyText = document.body.innerText.toLowerCase();
-            const links = Array.from(document.querySelectorAll('a'));
-
-            const impressum = {
-                found: links.some(a => a.innerText.toLowerCase().includes('impressum') || a.href.toLowerCase().includes('impressum')),
-                link: links.find(a => a.innerText.toLowerCase().includes('impressum') || a.href.toLowerCase().includes('impressum'))?.href || null,
-            };
-
-            const datenschutz = {
-                found: links.some(a => a.innerText.toLowerCase().includes('datenschutz') || a.href.toLowerCase().includes('datenschutz')),
-                link: links.find(a => a.innerText.toLowerCase().includes('datenschutz') || a.href.toLowerCase().includes('datenschutz'))?.href || null,
-            };
-
-            const cookies = {
-                count: document.cookie.split(';').filter(c => c.trim() !== '').length,
-                details: document.cookie.split(';').map(c => c.trim()),
-            };
-
-            return { impressum, datenschutz, cookies };
-        });
-
-        // Barrierefreiheits-Analyse mit axe-core
-        await page.addScriptTag({ content: axe.source });
-        const accessibilityResult = await page.evaluate(() => axe.run());
-        checks.accessibility = accessibilityResult;
-
-        // Externe Dienste aus der Netzwerkanalyse hinzufügen
-        checks.externalServices = {
-            found: Array.from(externalRequests),
-            usesGoogleFonts: externalRequests.has('fonts.googleapis.com'),
-            usesGoogleAnalytics: externalRequests.has('www.google-analytics.com'),
-        };
-
-        // --- Schritt 4: Ergebnis zurückgeben ---
+        // Die Rohdaten in unser bekanntes Format umwandeln
         const report = {
             url: url,
             timestamp: new Date().toISOString(),
-            danke: "Danke für deine Geduld!",
-            checks: checks,
+            checks: {
+                impressum: {
+                    found: rawData.links.some(a => a.text.toLowerCase().includes('impressum') || a.href.toLowerCase().includes('impressum')),
+                },
+                datenschutz: {
+                    found: rawData.links.some(a => a.text.toLowerCase().includes('datenschutz') || a.href.toLowerCase().includes('datenschutz')),
+                },
+                cookies: {
+                    count: rawData.cookies.length,
+                    details: rawData.cookies.map(c => c.name),
+                },
+                accessibility: rawData.accessibility,
+                externalServices: {
+                    found: rawData.externalRequests,
+                    usesGoogleFonts: rawData.externalRequests.includes('fonts.googleapis.com'),
+                    usesGoogleAnalytics: rawData.externalRequests.includes('www.google-analytics.com'),
+                }
+            }
         };
-        
+
         return res.status(200).json(report);
 
     } catch (error) {
-        console.error('Fehler während des Browserless-Audits:', error.message);
-        return res.status(500).json({ error: `Fehler während des Browserless-Audits: ${error.message}` });
-    } finally {
-        if (browser) {
-            console.log('[CLEANUP] Browser-Verbindung wird geschlossen.');
-            await browser.close();
-        }
+        console.error('Fehler während des HTTP-Audits:', error.message);
+        return res.status(500).json({ error: `Fehler während des HTTP-Audits: ${error.message}` });
     }
 }

@@ -10,7 +10,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "cheerio": "^1.0.0-rc.12",
-    "pdfkit": "^0.15.0"
+    "pdfkit": "^0.15.0",
+    "puppeteer-core": "^22.12.1"
   }
 }

@@ -1,9 +1,9 @@
-import axe from 'axe-core';
+import puppeteer from 'puppeteer-core';
 
 /**
  * Dies ist die finale, produktive Version der Audit-Funktion.
- * Sie führt alle Checks (DSGVO, Cookies, Barrierefreiheit) über
- * die Browserless.io HTTP-API durch.
+ * Sie nutzt den stabilsten Ansatz, um alle Checks durchzuführen:
+ * Browserless.io wird angewiesen, axe-core von einem CDN zu laden.
  */
 export default async function handler(req, res) {
     const { url } = req.query;
@@ -12,7 +12,7 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: 'URL ist erforderlich' });
     }
 
-    console.log(`[VOLLSTÄNDIGER AUDIT START] für URL: ${url}`);
+    console.log(`[FINALE VERSION AUDIT START] für URL: ${url}`);
 
     try {
         const apiKey = process.env.BROWSERLESS_API_KEY;
@@ -20,10 +20,10 @@ export default async function handler(req, res) {
             throw new Error('BROWSERLESS_API_KEY wurde in der Umgebung nicht gefunden.');
         }
 
-        // Dies ist der Code, der remote auf Browserless.io ausgeführt wird.
+        // Der Code, der remote auf Browserless.io ausgeführt wird.
         const codeToExecute = `
             async ({ page, context }) => {
-                const { url, axeSource } = context;
+                const { url } = context;
                 await page.goto(url, { waitUntil: 'networkidle2' });
 
                 // Netzwerkanalyse
@@ -37,14 +37,14 @@ export default async function handler(req, res) {
                         }
                     } catch(e) {}
                 });
-                await new Promise(r => setTimeout(r, 1500)); // Warten auf Netzwerkanfragen
+                await new Promise(r => setTimeout(r, 1500));
 
                 // DSGVO-Checks
                 const links = await page.$$eval('a', as => as.map(a => ({ text: a.innerText, href: a.href })));
                 const cookies = await page.cookies();
                 
-                // Barrierefreiheits-Check
-                await page.addScriptTag({ content: axeSource });
+                // Barrierefreiheits-Check: Lade axe-core von einem CDN
+                await page.addScriptTag({ url: 'https://unpkg.com/axe-core' });
                 const accessibility = await page.evaluate(() => window.axe.run());
 
                 return {
@@ -62,7 +62,7 @@ export default async function handler(req, res) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 code: codeToExecute,
-                context: { url: url, axeSource: axe.source }
+                context: { url: url }
             }),
         });
 
@@ -103,7 +103,7 @@ export default async function handler(req, res) {
         return res.status(200).json(report);
 
     } catch (error) {
-        console.error('Fehler während des vollständigen Audits:', error.message);
-        return res.status(500).json({ error: `Fehler während des vollständigen Audits: ${error.message}` });
+        console.error('Fehler während des finalen Audits:', error.message);
+        return res.status(500).json({ error: `Fehler während des finalen Audits: ${error.message}` });
     }
 }

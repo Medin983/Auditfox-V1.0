@@ -20,13 +20,13 @@ export default async function handler(req, res) {
             throw new Error('BROWSERLESS_API_KEY wurde in der Umgebung nicht gefunden.');
         }
 
-        // Wir rufen die /content API auf, um das gerenderte HTML zu erhalten - MIT DER NEUEN URL
+        // Wir rufen die /content API auf, um das gerenderte HTML zu erhalten
         const browserlessResponse = await fetch(`https://production-sfo.browserless.io/content?token=${apiKey}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                url: url,
-                waitFor: 2000 // Warten, bis die Seite geladen ist
+                url: url
+                // Die fehlerhafte "waitFor"-Zeile wurde hier entfernt.
             }),
         });
         

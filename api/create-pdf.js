@@ -58,16 +58,21 @@ function drawSection(doc, title, ergebnis, solution, isPositive = false) {
     const titleColor = isPositive ? '#16A34A' : '#DC2626'; // Grün für positiv, Rot für negativ
     const textColor = '#374151';
 
-    doc.fontSize(16).fillColor(titleColor).text(title, { semiBold: true });
-    doc.moveDown(0.5);
+    doc.fontSize(16).fillColor(titleColor).font('Helvetica-Bold').text(title);
+    doc.moveDown(0.7);
     
-    doc.fontSize(11).fillColor(textColor).text('Ergebnis:', { semiBold: true });
-    doc.text(ergebnis, { indent: 20 });
+    // "Ergebnis:" wird jetzt fett geschrieben
+    doc.fontSize(11).fillColor(textColor).font('Helvetica-Bold').text('Ergebnis:');
+    doc.font('Helvetica').text(ergebnis, { indent: 20 });
     doc.moveDown(0.5);
 
-    doc.fontSize(11).fillColor(textColor).text('Handlungsempfehlung:', { semiBold: true });
-    doc.text(solution, { indent: 20 });
-    doc.moveDown(2);
+    // "Handlungsempfehlung:" wird jetzt fett geschrieben
+    doc.font('Helvetica-Bold').text('Handlungsempfehlung:');
+    doc.font('Helvetica').text(solution, { indent: 20 });
+    
+    // Eine Trennlinie für besseres Design
+    doc.moveDown(1.5).strokeColor('#E5E7EB').lineWidth(1).moveTo(50, doc.y).lineTo(562, doc.y).stroke();
+    doc.moveDown(1.5);
 }
 
 module.exports = async (req, res) => {
@@ -83,8 +88,8 @@ module.exports = async (req, res) => {
         doc.on('data', buffers.push.bind(buffers));
 
         // --- PDF-INHALT ---
-        doc.fontSize(28).fillColor('#1E3A8A').text('Audit Report', { align: 'center' });
-        doc.fontSize(14).fillColor('#4B5563').text(`für: ${auditData.url}`, { align: 'center' });
+        doc.font('Helvetica-Bold').fontSize(28).fillColor('#1E3A8A').text('Audit Report', { align: 'center' });
+        doc.font('Helvetica').fontSize(14).fillColor('#4B5563').text(`für: ${auditData.url}`, { align: 'center' });
         doc.moveDown(3);
 
         // Impressum
@@ -117,11 +122,11 @@ module.exports = async (req, res) => {
         // Accessibility Verstöße
         const violations = auditData.checks.accessibility.violations || [];
         if (violations.length > 0) {
-            doc.fontSize(18).fillColor('#DC2626').text(`Gefundene Barrierefreiheits-Verstöße: ${violations.length}`, { underline: true });
+            doc.font('Helvetica-Bold').fontSize(18).fillColor('#DC2626').text(`Gefundene Barrierefreiheits-Verstöße: ${violations.length}`, { underline: true });
             doc.moveDown();
             violations.forEach(v => {
-                doc.fontSize(11).fillColor('#374151').text(`- ${v.help} (Auswirkung: ${v.impact})`);
-                doc.fontSize(10).fillColor('#2563EB').text(`   Weitere Informationen...`, { link: v.helpUrl, underline: true });
+                doc.font('Helvetica-Bold').fontSize(11).fillColor('#374151').text(`- ${v.help} (Auswirkung: ${v.impact})`);
+                doc.font('Helvetica').fontSize(10).fillColor('#2563EB').text(`   Weitere Informationen...`, { link: v.helpUrl, underline: true });
                 doc.moveDown(0.7);
             });
         }

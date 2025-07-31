@@ -66,9 +66,11 @@ export default async function handler(req, res) {
             body: JSON.stringify({ html: html }),
         });
 
+        // FINALE KORREKTUR: Prüfen, ob die API-Antwort erfolgreich war, BEVOR wir sie als JSON parsen.
         if (!axeApiResponse.ok) {
-            console.error("Fehler bei der Axe API:", await axeApiResponse.text());
-            throw new Error("Die Barrierefreiheits-Analyse konnte nicht durchgeführt werden.");
+            const errorText = await axeApiResponse.text(); // Lese die HTML-Fehlerseite als Text
+            console.error("Fehler bei der Axe API:", errorText);
+            throw new Error("Die Barrierefreiheits-Analyse konnte nicht durchgeführt werden. Die externe API hat einen Fehler zurückgegeben.");
         }
         const accessibilityData = await axeApiResponse.json();
 

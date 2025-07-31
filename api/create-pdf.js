@@ -8,43 +8,43 @@ const recommendations = {
     impressum: {
         missing: {
             title: "Fehlendes Impressum",
-            problem: "Auf Ihrer Webseite konnte kein gültiger Link zu einem Impressum gefunden werden. In Deutschland ist ein leicht auffindbares Impressum für fast alle Webseiten gesetzlich vorgeschrieben.",
+            ergebnis: "Auf Ihrer Webseite konnte kein gültiger Link zu einem Impressum gefunden werden. In Deutschland ist ein leicht auffindbares Impressum für fast alle Webseiten gesetzlich vorgeschrieben.",
             solution: "Fügen Sie einen deutlich sichtbaren Link mit der Beschriftung 'Impressum' in den Footer (Fußzeile) Ihrer Webseite ein. Dieser Link muss zu einer Seite führen, die alle gesetzlich vorgeschriebenen Angaben enthält (Name, Anschrift, Kontaktmöglichkeit etc.)."
         },
         found: {
             title: "Impressum vorhanden",
-            problem: "Es wurde ein Link zu einem Impressum gefunden. Das ist die Grundvoraussetzung und sehr gut!",
+            ergebnis: "Es wurde ein Link zu einem Impressum gefunden. Das ist die Grundvoraussetzung und sehr gut!",
             solution: "Bitte prüfen Sie manuell, ob der Inhalt Ihres Impressums vollständig und aktuell ist. Unser Audit prüft nur die technische Existenz des Links, nicht die inhaltliche Korrektheit."
         }
     },
     datenschutz: {
         missing: {
             title: "Fehlende Datenschutzerklärung",
-            problem: "Es wurde kein Link zu einer Datenschutzerklärung gefunden. Diese ist nach der DSGVO für jede Webseite, die personenbezogene Daten verarbeitet (z.B. durch Cookies oder Kontaktformulare), zwingend erforderlich.",
+            ergebnis: "Es wurde kein Link zu einer Datenschutzerklärung gefunden. Diese ist nach der DSGVO für jede Webseite, die personenbezogene Daten verarbeitet (z.B. durch Cookies oder Kontaktformulare), zwingend erforderlich.",
             solution: "Erstellen Sie eine ausführliche Datenschutzerklärung und verlinken Sie diese gut sichtbar, idealerweise neben dem Impressum im Footer. Nutzen Sie hierfür bei Bedarf einen Datenschutz-Generator."
         },
         found: {
             title: "Datenschutzerklärung vorhanden",
-            problem: "Ein Link zu einer Datenschutzerklärung wurde gefunden. Das ist sehr gut.",
+            ergebnis: "Ein Link zu einer Datenschutzerklärung wurde gefunden. Das ist sehr gut.",
             solution: "Stellen Sie sicher, dass Ihre Datenschutzerklärung alle genutzten Dienste (z.B. Google Analytics, Google Fonts) und Cookies auflistet und deren Zweck erklärt. Sie muss immer auf dem neuesten Stand sein."
         }
     },
     cookies: {
         none: {
             title: "Keine Cookies gefunden",
-            problem: "Unser Scan hat keine Cookies auf Ihrer Startseite gefunden. Das ist aus DSGVO-Sicht ideal.",
+            ergebnis: "Unser Scan hat keine Cookies auf Ihrer Startseite gefunden. Das ist aus DSGVO-Sicht ideal.",
             solution: "Falls Sie sicher sind, dass Ihre Seite keine Cookies setzt, brauchen Sie nichts weiter zu tun. Prüfen Sie jedoch Unterseiten, falls dort andere Funktionalitäten eingebunden sind."
         },
         some: {
             title: "Cookies gefunden",
-            problem: `Es wurden {{count}} Cookies auf Ihrer Webseite identifiziert. Sobald nicht technisch notwendige Cookies gesetzt werden, benötigen Sie die explizite Einwilligung des Nutzers über einen Cookie-Banner.`,
+            ergebnis: `Es wurden {{count}} Cookies auf Ihrer Webseite identifiziert. Sobald nicht technisch notwendige Cookies gesetzt werden, benötigen Sie die explizite Einwilligung des Nutzers über einen Cookie-Banner.`,
             solution: "Überprüfen Sie alle gesetzten Cookies. Implementieren Sie einen rechtskonformen Cookie-Banner, der die Einwilligung des Nutzers einholt, bevor die Cookies gesetzt werden. Technisch notwendige Cookies sind hiervon ausgenommen, müssen aber in der Datenschutzerklärung erwähnt werden."
         }
     },
     externalServices: {
         googleFonts: {
             title: "Google Fonts wird extern geladen",
-            problem: "Google Fonts wird direkt von den Google-Servern geladen. Dabei wird die IP-Adresse des Besuchers an Google in die USA übertragen, was datenschutzrechtlich problematisch ist.",
+            ergebnis: "Google Fonts wird direkt von den Google-Servern geladen. Dabei wird die IP-Adresse des Besuchers an Google in die USA übertragen, was datenschutzrechtlich problematisch ist.",
             solution: "Laden Sie die benötigten Schriftarten herunter und binden Sie sie lokal von Ihrem eigenen Server ein. So findet keine Datenübertragung an Google statt. Anleitungen hierfür finden Sie z.B. beim Google Webfonts Helper."
         }
     }
@@ -54,15 +54,15 @@ const recommendations = {
 // --- PDF-GENERIERUNGS-LOGIK ---
 // =================================================================================
 
-function drawSection(doc, title, problem, solution, isPositive = false) {
+function drawSection(doc, title, ergebnis, solution, isPositive = false) {
     const titleColor = isPositive ? '#16A34A' : '#DC2626'; // Grün für positiv, Rot für negativ
     const textColor = '#374151';
 
     doc.fontSize(16).fillColor(titleColor).text(title, { semiBold: true });
     doc.moveDown(0.5);
     
-    doc.fontSize(11).fillColor(textColor).text('Problem:', { semiBold: true });
-    doc.text(problem, { indent: 20 });
+    doc.fontSize(11).fillColor(textColor).text('Ergebnis:', { semiBold: true });
+    doc.text(ergebnis, { indent: 20 });
     doc.moveDown(0.5);
 
     doc.fontSize(11).fillColor(textColor).text('Handlungsempfehlung:', { semiBold: true });
@@ -89,29 +89,29 @@ module.exports = async (req, res) => {
 
         // Impressum
         if (auditData.checks.impressum.found) {
-            drawSection(doc, recommendations.impressum.found.title, recommendations.impressum.found.problem, recommendations.impressum.found.solution, true);
+            drawSection(doc, recommendations.impressum.found.title, recommendations.impressum.found.ergebnis, recommendations.impressum.found.solution, true);
         } else {
-            drawSection(doc, recommendations.impressum.missing.title, recommendations.impressum.missing.problem, recommendations.impressum.missing.solution, false);
+            drawSection(doc, recommendations.impressum.missing.title, recommendations.impressum.missing.ergebnis, recommendations.impressum.missing.solution, false);
         }
 
         // Datenschutz
         if (auditData.checks.datenschutz.found) {
-            drawSection(doc, recommendations.datenschutz.found.title, recommendations.datenschutz.found.problem, recommendations.datenschutz.found.solution, true);
+            drawSection(doc, recommendations.datenschutz.found.title, recommendations.datenschutz.found.ergebnis, recommendations.datenschutz.found.solution, true);
         } else {
-            drawSection(doc, recommendations.datenschutz.missing.title, recommendations.datenschutz.missing.problem, recommendations.datenschutz.missing.solution, false);
+            drawSection(doc, recommendations.datenschutz.missing.title, recommendations.datenschutz.missing.ergebnis, recommendations.datenschutz.missing.solution, false);
         }
 
         // Cookies
         if (auditData.checks.cookies.count === 0) {
-            drawSection(doc, recommendations.cookies.none.title, recommendations.cookies.none.problem, recommendations.cookies.none.solution, true);
+            drawSection(doc, recommendations.cookies.none.title, recommendations.cookies.none.ergebnis, recommendations.cookies.none.solution, true);
         } else {
-            const problemText = recommendations.cookies.some.problem.replace('{{count}}', auditData.checks.cookies.count);
-            drawSection(doc, recommendations.cookies.some.title, problemText, recommendations.cookies.some.solution, false);
+            const ergebnisText = recommendations.cookies.some.ergebnis.replace('{{count}}', auditData.checks.cookies.count);
+            drawSection(doc, recommendations.cookies.some.title, ergebnisText, recommendations.cookies.some.solution, false);
         }
 
         // Externe Dienste
         if (auditData.checks.externalServices.usesGoogleFonts) {
-            drawSection(doc, recommendations.externalServices.googleFonts.title, recommendations.externalServices.googleFonts.problem, recommendations.externalServices.googleFonts.solution, false);
+            drawSection(doc, recommendations.externalServices.googleFonts.title, recommendations.externalServices.googleFonts.ergebnis, recommendations.externalServices.googleFonts.solution, false);
         }
 
         // Accessibility Verstöße

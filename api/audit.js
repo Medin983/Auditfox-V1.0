@@ -1,9 +1,9 @@
-import puppeteer from 'puppeteer-core';
+import * as cheerio from 'cheerio';
 
 /**
- * Dies ist die finale, produktive Version der Audit-Funktion.
- * Sie nutzt den stabilsten Ansatz, um alle Checks durchzuführen:
- * Browserless.io wird angewiesen, axe-core von einem CDN zu laden.
+ * Dies ist die stabile Basis-Version der Audit-Funktion.
+ * Sie verwendet die /content API von Browserless.io und analysiert
+ * das HTML serverseitig mit Cheerio, um Impressum und Datenschutz zu prüfen.
  */
 export default async function handler(req, res) {
     const { url } = req.query;
@@ -12,7 +12,7 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: 'URL ist erforderlich' });
     }
 
-    console.log(`[FINALE VERSION AUDIT START] für URL: ${url}`);
+    console.log(`[STABILER AUDIT START] für URL: ${url}`);
 
     try {
         const apiKey = process.env.BROWSERLESS_API_KEY;
@@ -20,90 +20,60 @@ export default async function handler(req, res) {
             throw new Error('BROWSERLESS_API_KEY wurde in der Umgebung nicht gefunden.');
         }
 
-        // Der Code, der remote auf Browserless.io ausgeführt wird.
-        const codeToExecute = `
-            async ({ page, context }) => {
-                const { url } = context;
-                await page.goto(url, { waitUntil: 'networkidle2' });
-
-                // Netzwerkanalyse
-                const externalRequests = new Set();
-                page.on('request', (request) => {
-                    const requestUrl = request.url();
-                    try {
-                        if (requestUrl.startsWith('https') && !requestUrl.includes(new URL(url).hostname)) {
-                           const domain = new URL(requestUrl).hostname;
-                           externalRequests.add(domain);
-                        }
-                    } catch(e) {}
-                });
-                await new Promise(r => setTimeout(r, 1500));
-
-                // DSGVO-Checks
-                const links = await page.$$eval('a', as => as.map(a => ({ text: a.innerText, href: a.href })));
-                const cookies = await page.cookies();
-                
-                // Barrierefreiheits-Check: Lade axe-core von einem CDN
-                await page.addScriptTag({ url: 'https://unpkg.com/axe-core' });
-                const accessibility = await page.evaluate(() => window.axe.run());
-
-                return {
-                    links,
-                    cookies,
-                    accessibility,
-                    externalRequests: Array.from(externalRequests)
-                };
-            }
-        `;
-
-        // Anfrage an Browserless
-        const browserlessResponse = await fetch(`https://production-sfo.browserless.io/function?token=${apiKey}`, {
+        // Wir rufen die /content API auf, um das gerenderte HTML zu erhalten.
+        const browserlessResponse = await fetch(`https://production-sfo.browserless.io/content?token=${apiKey}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                code: codeToExecute,
-                context: { url: url }
-            }),
+            body: JSON.stringify({ url: url }),
         });
-
+        
         if (!browserlessResponse.ok) {
             const errorText = await browserlessResponse.text();
             throw new Error(`Browserless.io Fehler ${browserlessResponse.status}: ${errorText}`);
         }
 
-        const rawData = await browserlessResponse.json();
+        const html = await browserlessResponse.text();
 
-        // Report zusammenstellen
+        // Wir laden das HTML in Cheerio, unser serverseitiges Analyse-Werkzeug.
+        const $ = cheerio.load(html);
+
+        // Jetzt führen wir unsere Basis-Checks auf dem fertigen HTML durch.
+        const links = $('a');
+        let impressumFound = false;
+        links.each((i, link) => {
+            const linkText = $(link).text().toLowerCase();
+            const linkHref = $(link).attr('href')?.toLowerCase() || '';
+            if (linkText.includes('impressum') || linkHref.includes('impressum')) {
+                impressumFound = true;
+            }
+        });
+        
+        let datenschutzFound = false;
+        links.each((i, link) => {
+            const linkText = $(link).text().toLowerCase();
+            const linkHref = $(link).attr('href')?.toLowerCase() || '';
+            if (linkText.includes('datenschutz') || linkHref.includes('datenschutz')) {
+                datenschutzFound = true;
+            }
+        });
+
+        // Die anderen Checks sind Platzhalter für später.
         const report = {
             url: url,
             timestamp: new Date().toISOString(),
             checks: {
-                impressum: {
-                    found: rawData.links.some(a => a.text.toLowerCase().includes('impressum') || a.href.toLowerCase().includes('impressum')),
-                },
-                datenschutz: {
-                    found: rawData.links.some(a => a.text.toLowerCase().includes('datenschutz') || a.href.toLowerCase().includes('datenschutz')),
-                },
-                cookies: {
-                    count: rawData.cookies.length,
-                    details: rawData.cookies.map(c => ({ name: c.name, domain: c.domain })),
-                },
-                accessibility: {
-                    violations: rawData.accessibility.violations,
-                    violationCount: rawData.accessibility.violations.length,
-                },
-                externalServices: {
-                    found: rawData.externalRequests,
-                    usesGoogleFonts: rawData.externalRequests.includes('fonts.googleapis.com'),
-                    usesGoogleAnalytics: rawData.externalRequests.includes('www.google-analytics.com'),
-                }
+                impressum: { found: impressumFound },
+                datenschutz: { found: datenschutzFound },
+                cookies: { count: 'N/A' },
+                accessibility: { violations: [] },
+                externalServices: { usesGoogleFonts: 'N/A' },
             }
         };
 
         return res.status(200).json(report);
 
     } catch (error) {
-        console.error('Fehler während des finalen Audits:', error.message);
-        return res.status(500).json({ error: `Fehler während des finalen Audits: ${error.message}` });
+        console.error('Fehler während des stabilen Audits:', error.message);
+        return res.status(500).json({ error: `Fehler während des stabilen Audits: ${error.message}` });
     }
-}
+};

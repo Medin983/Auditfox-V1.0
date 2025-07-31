@@ -1,7 +1,8 @@
 {
-  "name": "auditfox-final",
+  "name": "auditfox-v1.0",
   "version": "1.0.0",
-  "description": "DSGVO & Accessibility Audit Tool",
+  "description": "",
+  "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
@@ -9,7 +10,6 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "axe-core": "^4.9.1",
-    "pdfkit": "^0.15.0"
+    "cheerio": "^1.0.0-rc.12"
   }
 }

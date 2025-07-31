@@ -3,7 +3,7 @@ import * as cheerio from 'cheerio';
 /**
  * Dies ist die finale, stabile Version der Audit-Funktion.
  * Sie verwendet die /content API von Browserless.io und analysiert
- * das HTML serverseitig mit Cheerio. Dieser Ansatz ist robuster.
+ * das HTML serverseitig mit Cheerio. Diese Version nutzt die korrekte Endpunkt-URL.
  */
 export default async function handler(req, res) {
     const { url } = req.query;
@@ -20,8 +20,8 @@ export default async function handler(req, res) {
             throw new Error('BROWSERLESS_API_KEY wurde in der Umgebung nicht gefunden.');
         }
 
-        // Wir rufen die /content API auf, um das gerenderte HTML zu erhalten.
-        const browserlessResponse = await fetch(`https://chrome.browserless.io/content?token=${apiKey}`, {
+        // Wir rufen die /content API auf, um das gerenderte HTML zu erhalten - MIT DER NEUEN URL
+        const browserlessResponse = await fetch(`https://production-sfo.browserless.io/content?token=${apiKey}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({

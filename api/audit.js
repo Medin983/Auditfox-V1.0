@@ -1,13 +1,11 @@
-// Wir wechseln zur robusteren CommonJS-Syntax, die auf Vercel zuverlässiger ist.
-const cheerio = require('cheerio');
+import * as cheerio from 'cheerio';
 
 /**
- * Dies ist die finale, stabile Version der Audit-Funktion.
+ * Dies ist die stabile Basis-Version der Audit-Funktion.
  * Sie verwendet die /content API von Browserless.io und analysiert
- * das HTML serverseitig mit Cheerio. Diese Version nutzt die korrekte Endpunkt-URL
- * und eine robustere Modul-Syntax für Vercel.
+ * das HTML serverseitig mit Cheerio, um Impressum und Datenschutz zu prüfen.
  */
-module.exports = async (req, res) => {
+export default async function handler(req, res) {
     const { url } = req.query;
 
     if (!url) {
@@ -22,13 +20,11 @@ module.exports = async (req, res) => {
             throw new Error('BROWSERLESS_API_KEY wurde in der Umgebung nicht gefunden.');
         }
 
-        // Wir rufen die /content API auf, um das gerenderte HTML zu erhalten
+        // Wir rufen die /content API auf, um das gerenderte HTML zu erhalten.
         const browserlessResponse = await fetch(`https://production-sfo.browserless.io/content?token=${apiKey}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                url: url
-            }),
+            body: JSON.stringify({ url: url }),
         });
         
         if (!browserlessResponse.ok) {
@@ -41,7 +37,7 @@ module.exports = async (req, res) => {
         // Wir laden das HTML in Cheerio, unser serverseitiges Analyse-Werkzeug.
         const $ = cheerio.load(html);
 
-        // Jetzt führen wir unsere Checks auf dem fertigen HTML durch.
+        // Jetzt führen wir unsere Basis-Checks auf dem fertigen HTML durch.
         const links = $('a');
         let impressumFound = false;
         links.each((i, link) => {
@@ -61,19 +57,16 @@ module.exports = async (req, res) => {
             }
         });
 
-        // Die anderen Checks (Cookies, Barrierefreiheit) können wir in einem nächsten Schritt
-        // mit anderen Methoden wieder hinzufügen. Ziel ist jetzt eine funktionierende Basis.
-
+        // Die anderen Checks sind Platzhalter für später.
         const report = {
             url: url,
             timestamp: new Date().toISOString(),
             checks: {
                 impressum: { found: impressumFound },
                 datenschutz: { found: datenschutzFound },
-                // Platzhalter für zukünftige, stabilere Checks
-                cookies: { count: 'N/A', details: [] },
-                accessibility: { violations: [], passes: [] },
-                externalServices: { found: [], usesGoogleFonts: false, usesGoogleAnalytics: false },
+                cookies: { count: 'N/A' },
+                accessibility: { violations: [] },
+                externalServices: { usesGoogleFonts: 'N/A' },
             }
         };
 

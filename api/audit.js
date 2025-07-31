@@ -1,11 +1,13 @@
-import * as cheerio from 'cheerio';
+// Wir wechseln zur robusteren CommonJS-Syntax, die auf Vercel zuverlässiger ist.
+const cheerio = require('cheerio');
 
 /**
  * Dies ist die finale, stabile Version der Audit-Funktion.
  * Sie verwendet die /content API von Browserless.io und analysiert
- * das HTML serverseitig mit Cheerio. Diese Version nutzt die korrekte Endpunkt-URL.
+ * das HTML serverseitig mit Cheerio. Diese Version nutzt die korrekte Endpunkt-URL
+ * und eine robustere Modul-Syntax für Vercel.
  */
-export default async function handler(req, res) {
+module.exports = async (req, res) => {
     const { url } = req.query;
 
     if (!url) {
@@ -26,7 +28,6 @@ export default async function handler(req, res) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 url: url
-                // Die fehlerhafte "waitFor"-Zeile wurde hier entfernt.
             }),
         });
         
@@ -82,4 +83,4 @@ export default async function handler(req, res) {
         console.error('Fehler während des stabilen Audits:', error.message);
         return res.status(500).json({ error: `Fehler während des stabilen Audits: ${error.message}` });
     }
-}
+};
